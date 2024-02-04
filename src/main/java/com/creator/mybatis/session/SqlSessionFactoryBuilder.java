@@ -1,9 +1,9 @@
 package com.creator.mybatis.session;
 
-import com.creator.mybatis.session.defaults.DefaultSqlSessionFactory;
+import com.creator.mybatis.builder.xml.XMLMapperEntityResolver;
 import com.creator.mybatis.io.Resources;
 import com.creator.mybatis.parsing.XNode;
-import org.apache.ibatis.builder.xml.XMLMapperEntityResolver;
+import com.creator.mybatis.session.defaults.DefaultSqlSessionFactory;
 import org.dom4j.Document;
 import org.dom4j.DocumentException;
 import org.dom4j.Element;
