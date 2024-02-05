@@ -8,12 +8,18 @@ import org.dom4j.Document;
 import org.dom4j.DocumentException;
 import org.dom4j.Element;
 import org.dom4j.io.SAXReader;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.core.io.support.ResourcePatternResolver;
 import org.xml.sax.InputSource;
 
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.Reader;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +39,29 @@ public class SqlSessionFactoryBuilder {
             e.printStackTrace();
         }
         return null;
+    }
+
+    /**
+     * 配合 esbatis-spring-boot-starter
+     * @param connection
+     * @param packageSearchPath
+     * @return
+     * @throws IOException
+     * @throws DocumentException
+     */
+    public DefaultSqlSessionFactory build(Connection connection, String packageSearchPath) throws IOException, DocumentException {
+        Configuration configuration = new Configuration();
+        configuration.setConnection(connection);
+        // 读取配置
+        ResourcePatternResolver resourcePatternResolver = new PathMatchingResourcePatternResolver();
+        Resource[] resources = resourcePatternResolver.getResources(packageSearchPath);
+        List<Element> list = new ArrayList<>(resources.length);
+        for(Resource resource : resources) {
+            Document document = new SAXReader().read(new InputSource(new InputStreamReader(resource.getInputStream())));
+            list.add(document.getRootElement());
+        }
+        configuration.setMapperElement(mapperElementNoResource(list));
+        return new DefaultSqlSessionFactory(configuration);
     }
 
     /**
@@ -99,43 +128,64 @@ public class SqlSessionFactoryBuilder {
                 SAXReader saxReader = new SAXReader();
                 Document document = saxReader.read(new InputSource(reader));
                 Element root = document.getRootElement();
-                //命名空间
-                String namespace = root.attributeValue("namespace");
-
-                // SELECT
-                List<Element> selectNodes = root.selectNodes("select");
-                for (Element node : selectNodes) {
-                    String id = node.attributeValue("id");
-                    String parameterType = node.attributeValue("parameterType");
-                    String resultType = node.attributeValue("resultType");
-                    String sql = node.getText();
-
-                    // ? 匹配
-                    Map<Integer, String> parameter = new HashMap<>();
-                    Pattern pattern = Pattern.compile("(#\\{(.*?)})");
-                    Matcher matcher = pattern.matcher(sql);
-                    for (int i = 1; matcher.find(); i++) {
-                        String g1 = matcher.group(1);
-                        String g2 = matcher.group(2);
-                        parameter.put(i, g2);
-                        sql = sql.replace(g1, "?");
-                    }
-
-                    XNode xNode = new XNode();
-                    xNode.setNamespace(namespace);
-                    xNode.setId(id);
-                    xNode.setParameterType(parameterType);
-                    xNode.setResultType(resultType);
-                    xNode.setSql(sql);
-                    xNode.setParameter(parameter);
-
-                    map.put(namespace + "." + id, xNode);
-                }
+                parseElement(map, root);
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
 
         }
         return map;
+    }
+
+    /**
+     * 从对应的 mapper.xml 中直接获取 SQL 语句信息
+     * @param list
+     * @return
+     */
+    private Map<String, XNode> mapperElementNoResource(List<Element> list) {
+        Map<String, XNode> map = new HashMap<>();
+        for (Element o : list) {
+            try {
+                parseElement(map, o);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        }
+        return map;
+    }
+
+    private void parseElement(Map<String, XNode> map, Element root) {
+        //命名空间
+        String namespace = root.attributeValue("namespace");
+
+        // SELECT
+        List<Element> selectNodes = root.selectNodes("select");
+        for (Element node : selectNodes) {
+            String id = node.attributeValue("id");
+            String parameterType = node.attributeValue("parameterType");
+            String resultType = node.attributeValue("resultType");
+            String sql = node.getText();
+
+            // ? 匹配
+            Map<Integer, String> parameter = new HashMap<>();
+            Pattern pattern = Pattern.compile("(#\\{(.*?)})");
+            Matcher matcher = pattern.matcher(sql);
+            for (int i = 1; matcher.find(); i++) {
+                String g1 = matcher.group(1);
+                String g2 = matcher.group(2);
+                parameter.put(i, g2);
+                sql = sql.replace(g1, "?");
+            }
+
+            XNode xNode = new XNode();
+            xNode.setNamespace(namespace);
+            xNode.setId(id);
+            xNode.setParameterType(parameterType);
+            xNode.setResultType(resultType);
+            xNode.setSql(sql);
+            xNode.setParameter(parameter);
+
+            map.put(namespace + "." + id, xNode);
+        }
     }
 }
