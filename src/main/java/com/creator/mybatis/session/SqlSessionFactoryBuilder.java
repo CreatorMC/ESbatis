@@ -102,9 +102,9 @@ public class SqlSessionFactoryBuilder {
      */
     private Connection connection(Map<String, String> dataSource) {
         try {
-            Class.forName(dataSource.get("driver"));
-            return DriverManager.getConnection(dataSource.get("url"), dataSource.get("username"), dataSource.get("password"));
-        } catch (ClassNotFoundException | SQLException e) {
+//            Class.forName(dataSource.get("driver"));
+            return DriverManager.getConnection(dataSource.get("url"));
+        } catch (SQLException e) {
             e.printStackTrace();
         }
         return null;

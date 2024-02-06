@@ -20,8 +20,8 @@ public class ORMTest {
             SqlSessionFactory sqlMapper = new SqlSessionFactoryBuilder().build(reader);
             SqlSession session = sqlMapper.openSession();
             try {
-                User user = session.selectOne("com.creator.mybatis.IUserDao.queryUserInfoById", 1L);
-                System.out.println(JSON.toJSONString(user));
+                Article article = session.selectOne("com.creator.mybatis.IUserDao.queryUserInfoById", 3L);
+                System.out.println(article.toString());
             } finally {
                 session.close();
                 reader.close();

@@ -95,28 +95,58 @@ public class DefaultSqlSession implements SqlSession {
             //遍历行
             while(resultSet.next()) {
                 T obj = (T) clazz.newInstance();
+                //建立字段名与类型的映射，为后面按名取类型做准备。
+                Map<String, Class<?>> fieldToClassMap = new HashMap<>();
+                Field[] fields = clazz.getDeclaredFields();
+                for(Field field: fields) {
+                    fieldToClassMap.put(field.getName(), field.getType());
+                }
                 //遍历当前行中的每列
                 for (int i = 1; i <= columnCount; i++) {
                     //获取当前列的值
                     Object value = resultSet.getObject(i);
                     //获取列名
                     String columnName = metaData.getColumnName(i);
+                    //如果是非用户自定义的列，就跳过
+                    if(columnName.length() <= 0 || '_' == columnName.charAt(0)) {
+                        continue;
+                    }
                     //拼接得到对应的 setter 方法名
                     //columnName.substring(0,1).toUpperCase() 解释：
                     //数据库中属性字段假设为 "user_name"，而代码中对应包装对象的 setter 方法叫 setUserName。所以需要将单词的首字母转为大写
                     //考虑到非严谨的数据库表设计，如果本身字段名叫 "Name"，则不用将第一个字符转大写。故采用 jdk 中的函数，而不是让字符减 32
                     StringBuilder setMethod = new StringBuilder("set");
+                    //单独存一下字段名
+                    StringBuilder fieldName = new StringBuilder();
                     String[] words = columnName.split("_");
                     for (String word : words) {
-                        setMethod.append(word.substring(0, 1).toUpperCase()).append(word.substring(1));
+                        fieldName.append(word.substring(0, 1).toUpperCase()).append(word.substring(1));
                     }
+                    setMethod.append(fieldName);
+                    //将字段的首字母转为小写（小驼峰要求）
+                    fieldName.replace(0, 1, fieldName.substring(0,1).toLowerCase());
                     //反射拿到 setter 方法
                     Method method = null;
                     if(value instanceof Timestamp || value instanceof LocalDateTime) {
                         //时间戳类型转换为日期类型
                         method = clazz.getMethod(setMethod.toString(), java.util.Date.class);
                     } else if(null != value){
-                        method = clazz.getMethod(setMethod.toString(), value.getClass());
+                        //如果真实类型是数字的话，将 ES 中的 Text 类型转为对应的数字对象
+                        Class<?> valueClass = fieldToClassMap.get(fieldName.toString());
+                        if(Long.class.getTypeName().equals(valueClass.getTypeName())) {
+                            value = Long.parseLong(String.valueOf(value));
+                        } else if (Integer.class.getTypeName().equals(valueClass.getTypeName())) {
+                            value = Integer.parseInt(String.valueOf(value));
+                        } else if (!valueClass.isInstance(value)) {
+                            //对象不是类型的实例，说明类型不一致
+                            if(List.class.getTypeName().equals(valueClass.getTypeName())) {
+                                //说明当前类型是列表，将对象封装进去
+                                List<Object> objects = new ArrayList<>();
+                                objects.add(value);
+                                value = objects;
+                            }
+                        }
+                        method = clazz.getMethod(setMethod.toString(), valueClass);
                     }
                     //执行 setter 方法，给 obj 对象中的属性赋值
                     if (method != null) {

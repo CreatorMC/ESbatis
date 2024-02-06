@@ -2,9 +2,9 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.creator.mybatis.IUserDao">
 
-    <select id="queryUserInfoById" parameterType="java.lang.Long" resultType="com.creator.mybatis.User">
+    <select id="queryUserInfoById" parameterType="java.lang.Long" resultType="com.creator.mybatis.Article">
         SELECT *
-        FROM sys_user
+        FROM article
         where id = #{id}
     </select>
 
